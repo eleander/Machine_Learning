@@ -1,6 +1,6 @@
 import pandas as pd
 
-df = pd.read_csv("panda/pokemon_data.csv")
+df = pd.read_csv("pandas/pokemon_data.csv")
 
 category = "Type 1"
 
