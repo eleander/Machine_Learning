@@ -697,7 +697,7 @@ len(ovr_clf.estimators_)
 # Remember to cross validate!
 
 # %%
-cross_val_score(sgd_clf, X_train, y_train, cv=3, scoring="accuracy")
+# cross_val_score(sgd_clf, X_train, y_train, cv=3, scoring="accuracy")
 
 # %% [markdown]
 # "It gets over 84% on all test folds. If you used a random classifier, you would get 10%
@@ -706,10 +706,10 @@ cross_val_score(sgd_clf, X_train, y_train, cv=3, scoring="accuracy")
 # 90%:"
 
 # %%
-from sklearn.preprocessing import StandardScaler
-scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train.astype(np.float64))
-cross_val_score(sgd_clf, X_train_scaled, y_train, cv=3, scoring="accuracy")
+# from sklearn.preprocessing import StandardScaler
+# scaler = StandardScaler()
+# X_train_scaled = scaler.fit_transform(X_train.astype(np.float64))
+# cross_val_score(sgd_clf, X_train_scaled, y_train, cv=3, scoring="accuracy")
 
 # %% [markdown]
 # ## Error Analyis 
@@ -723,12 +723,221 @@ cross_val_score(sgd_clf, X_train_scaled, y_train, cv=3, scoring="accuracy")
 # errors it makes."
 
 # %%
-y_train_pred = cross_val_predict(sgd_clf, X_train_scaled, y_train, cv=3)
+# y_train_pred = cross_val_predict(sgd_clf, X_train_scaled, y_train, cv=3)
+y_train_pred = cross_val_predict(sgd_clf, X_train, y_train, cv=3)
 conf_mx = confusion_matrix(y_train, y_train_pred)
 conf_mx
 
 
 # %%
+# since sklearn 0.22, you can use sklearn.metrics.plot_confusion_matrix()
+def plot_confusion_matrix(matrix):
+    """If you prefer color and a colorbar"""
+    fig = plt.figure(figsize=(8,8))
+    ax = fig.add_subplot(111)
+    cax = ax.matshow(matrix)
+    fig.colorbar(cax)
 
+# %% [markdown]
+# "That’s a lot of numbers. It’s often more convenient to look at an image representation
+# of the confusion matrix, using Matplotlib’s matshow() function"
 
+# %%
+plt.matshow(conf_mx, cmap=plt.cm.gray)
+save_fig("confusion_matrix_plot", tight_layout=False)
+plt.show()
+
+# %% [markdown]
+# "This confusion matrix looks fairly good, since most images are on the main diagonal,
+# which means that they were classified correctly. The 5s look slightly darker than the
+# other digits, which could mean that there are fewer images of 5s in the dataset or that
+# the classifier does not perform as well on 5s as on other digits. In fact, you can verify
+# that both are the case."
+# %% [markdown]
+# "Let’s focus the plot on the errors. First, you need to divide each value in the confusion
+# matrix by the number of images in the corresponding class, so you can compare error
+# rates instead of absolute number of errors (which would make abundant classes look
+# unfairly bad):"
+
+# %%
+row_sums = conf_mx.sum(axis=1, keepdims=True)
+norm_conf_mx = conf_mx / row_sums
+
+# %% [markdown]
+# "Now let’s fill the diagonal with zeros to keep only the errors, and let’s plot the result:"
+
+# %%
+np.fill_diagonal(norm_conf_mx, 0)
+plt.matshow(norm_conf_mx, cmap=plt.cm.gray)
+save_fig("confusion_matrix_errors_plot", tight_layout=False)
+plt.show()
+
+# %% [markdown]
+# "Now you can clearly see the kinds of errors the classifier makes. Remember that rows
+# represent actual classes, while columns represent predicted classes. The columns for
+# classes 8 and 9 are quite bright, which tells you that many images get misclassified as
+# 8s or 9s. Similarly, the rows for classes 8 and 9 are also quite bright, telling you that 8s
+# and 9s are often confused with other digits. Conversely, some rows are pretty dark,
+# such as row 1: this means that most 1s are classified correctly (a few are confused
+# with 8s, but that’s about it). Notice that the errors are not perfectly symmetrical; for
+# example, there are more 5s misclassified as 8s than the reverse."
+# 
+# "Analyzing the confusion matrix can often give you insights on ways to improve your
+# classifier. Looking at this plot, it seems that your efforts should be spent on improving
+# classification of 8s and 9s, as well as fixing the specific 3/5 confusion. For example,
+# you could try to gather more training data for these digits. Or you could engineer
+# new features that would help the classifier—for example, writing an algorithm to
+# count the number of closed loops (e.g., 8 has two, 6 has one, 5 has none). Or you
+# could preprocess the images (e.g., using Scikit-Image, Pillow, or OpenCV) to make
+# some patterns stand out more, such as closed loops."
+# %% [markdown]
+# "Analyzing individual errors can also be a good way to gain insights on what your
+# classifier is doing and why it is failing, but it is more difficult and time-consuming.
+# For example, let’s plot examples of 3s and 5s:"
+
+# %%
+cl_a, cl_b = 3, 5
+X_aa = X_train[(y_train == cl_a) & (y_train_pred == cl_a)]
+X_ab = X_train[(y_train == cl_a) & (y_train_pred == cl_b)]
+X_ba = X_train[(y_train == cl_b) & (y_train_pred == cl_a)]
+X_bb = X_train[(y_train == cl_b) & (y_train_pred == cl_b)]
+
+plt.figure(figsize=(8,8))
+plt.subplot(221); plot_digits(X_aa[:25], images_per_row=5)
+plt.subplot(222); plot_digits(X_ab[:25], images_per_row=5)
+plt.subplot(223); plot_digits(X_ba[:25], images_per_row=5)
+plt.subplot(224); plot_digits(X_bb[:25], images_per_row=5)
+save_fig("error_analysis_digits_plot")
+plt.show()
+
+# %% [markdown]
+# "The two 5×5 blocks on the left show digits classified as 3s, and the two 5×5 blocks on
+# the right show images classified as 5s. Some of the digits that the classifier gets wrong
+# (i.e., in the bottom-left and top-right blocks) are so badly written that even a human
+# would have trouble classifying them (e.g., the 5 on the 8th row and 1st column truly
+# looks like a 3)."
+# 
+# "However, most misclassified images seem like obvious errors to us,
+# and it’s hard to understand why the classifier made the mistakes it did.3 The reason is
+# that we used a simple SGDClassifier, which is a linear model. All it does is assign a
+# weight per class to each pixel, and when it sees a new image it just sums up the weighted
+# pixel intensities to get a score for each class. So since 3s and 5s differ only by a few
+# pixels, this model will easily confuse them."
+# 
+# "The main difference between 3s and 5s is the position of the small line that joins the
+# top line to the bottom arc. If you draw a 3 with the junction slightly shifted to the left,
+# the classifier might classify it as a 5, and vice versa. In other words, this classifier is
+# quite sensitive to image shifting and rotation. So one way to reduce the 3/5 confusion
+# would be to preprocess the images to ensure that they are well centered and not too
+# rotated. This will probably help reduce other errors as well."
+# %% [markdown]
+# # Multilabel Classification
+# %% [markdown]
+# "Until now each instance has always been assigned to just one class. In some cases you
+# may want your classifier to output multiple classes for each instance. For example,
+# consider a face-recognition classifier: what should it do if it recognizes several people
+# on the same picture? Of course it should attach one label per person it recognizes. Say
+# the classifier has been trained to recognize three faces, Alice, Bob, and Charlie; then
+# when it is shown a picture of Alice and Charlie, it should output (1, 0, 1) (meaning
+# “Alice yes, Bob no, Charlie yes”). Such a classification system that outputs multiple
+# binary labels is called a multilabel classification system."
+
+# %%
+from sklearn.neighbors import KNeighborsClassifier
+
+y_train_large = (y_train >= 7)
+y_train_odd = (y_train % 2 == 1)
+y_multilabel = np.c_[y_train_large, y_train_odd]
+
+knn_clf = KNeighborsClassifier()
+knn_clf.fit(X_train, y_multilabel)
+
+# %% [markdown]
+# "This code creates a y_multilabel array containing two target labels for each digit
+# image: the first indicates whether or not the digit is large (7, 8, or 9) and the second
+# indicates whether or not it is odd. The next lines create a KNeighborsClassifier
+# instance (which supports multilabel classification, but not all classifiers do) and we
+# train it using the multiple targets array. Now you can make a prediction, and notice
+# that it outputs two labels:"
+
+# %%
+knn_clf.predict([some_digit])
+
+# %% [markdown]
+# "And it gets it right! The digit 5 is indeed not large (False) and odd (True)."
+# %% [markdown]
+# "There are many ways to evaluate a multilabel classifier, and selecting the right metric
+# really depends on your project. For example, one approach is to measure the F1 score
+# for each individual label (or any other binary classifier metric discussed earlier), then
+# simply compute the average score. This code computes the average F1 score across all
+# labels:"
+
+# %%
+# y_train_knn_pred = cross_val_predict(knn_clf, X_train, y_multilabel, cv=3)
+# f1_score(y_multilabel, y_train_knn_pred, average="macro")
+
+# %% [markdown]
+# "This assumes that all labels are equally important, which may not be the case. In particular,
+# if you have many more pictures of Alice than of Bob or Charlie, you may want
+# to give more weight to the classifier’s score on pictures of Alice. One simple option is to give each label a weight equal to its support (i.e., the number of instances with that target label). To do this, simply set average="weighted" in the preceding code"
+# %% [markdown]
+# # Multioutput Classification
+# 
+# "The last type of classification task we are going to discuss here is called multioutputmulticlass
+# classification (or simply multioutput classification). It is simply a generalization
+# of multilabel classification where each label can be multiclass (i.e., it can have
+# more than two possible values)."
+# 
+# "To illustrate this, let’s build a system that removes noise from images. It will take as
+# input a noisy digit image, and it will (hopefully) output a clean digit image, represented
+# as an array of pixel intensities, just like the MNIST images. Notice that the
+# classifier’s output is multilabel (one label per pixel) and each label can have multiple
+# values (pixel intensity ranges from 0 to 255). It is thus an example of a multioutput
+# classification system."
+# 
+# ""General Note: The line between classification and regression is sometimes blurry,
+# such as in this example. Arguably, predicting pixel intensity is more
+# akin to regression than to classification. Moreover, multioutput
+# systems are not limited to classification tasks; you could even have
+# a system that outputs multiple labels per instance, including both
+# class labels and value labels.""
+# %% [markdown]
+# "Let’s start by creating the training and test sets by taking the MNIST images and
+# adding noise to their pixel intensities using NumPy’s randint() function. The target
+# images will be the original images:"
+
+# %%
+noise = np.random.randint(0, 100, (len(X_train), 784))
+X_train_mod = X_train + noise
+noise = np.random.randint(0, 100, (len(X_test), 784))
+X_test_mod = X_test + noise
+y_train_mod = X_train
+y_test_mod = X_test
+
+# %% [markdown]
+# "Let’s take a peek at an image from the test set (yes, we’re snooping on the test data, so
+# you should be frowning right now):"
+
+# %%
+some_index = 0
+plt.subplot(121); plot_digit(X_test_mod[some_index])
+plt.subplot(122); plot_digit(y_test_mod[some_index])
+save_fig("noisy_digit_example_plot")
+plt.show()
+
+# %% [markdown]
+# "On the left is the noisy input image, and on the right is the clean target image. Now
+# let’s train the classifier and make it clean this image:"
+
+# %%
+knn_clf.fit(X_train_mod, y_train_mod)
+clean_digit = knn_clf.predict([X_test_mod[some_index]])
+plot_digit(clean_digit)
+save_fig("cleaned_digit_example_plot")
+
+# %% [markdown]
+# "Looks close enough to the target! This concludes our tour of classification. Hopefully
+# you should now know how to select good metrics for classification tasks, pick the
+# appropriate precision/recall tradeoff, compare classifiers, and more generally build
+# good classification systems for a variety of tasks."
 
